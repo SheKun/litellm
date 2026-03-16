@@ -71,28 +71,8 @@ for img in "${IMAGES[@]}"; do
   fi
 done
 
-echo "3. 准备部署文件并从 KeePass 加载密钥 ..."
+echo "3. 准备部署文件 ..."
 ssh "$REMOTE_HOST" "mkdir -p ${DEPLOY_DIR}"
-
-KEEPASS_FILE="${PROJECT_ROOT}/../keepass.kdbx"
-if [ ! -f "$KEEPASS_FILE" ]; then
-  echo "错误: 未找到 KeePass 密码库文件 (${KEEPASS_FILE})"
-  exit 1
-fi
-
-BAILIAN_API_KEY_SLOT_PATH="LLM/阿里百炼/2141603"
-
-kp_password() {
-  echo "${KEEPASS_PASSWORD}" | keepassxc-cli show -q -a Password "$KEEPASS_FILE" "$1" 2>&1
-}
-
-echo "正在从 KeePass 读取 BAILIAN_API_KEY ..."
-BAILIAN_API_KEY_VAL=$(kp_password "${BAILIAN_API_KEY_SLOT_PATH}")
-
-if [ -z "$BAILIAN_API_KEY_VAL" ]; then
-  echo "错误: 无法从 KeePass 获取 BAILIAN_API_KEY"
-  exit 1
-fi
 
 echo "同步配置文件到远程主机 ..."
 scp "${PROJECT_ROOT}/prometheus.yml" "$REMOTE_HOST:${DEPLOY_DIR}/"
@@ -108,7 +88,6 @@ ssh -t "$REMOTE_HOST" "
   
   # 生成部署用的 .env 文件
   cat <<EOF > .env
-BAILIAN_API_KEY=${BAILIAN_API_KEY_VAL}
 LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY}
 EOF
   
@@ -123,4 +102,5 @@ echo "----------------------------------------------------"
 echo "🖥️  远程主机: ${REMOTE_HOST}"
 echo "📁 部署目录: ${DEPLOY_DIR}"
 echo "🖼️  镜像列表: ${IMAGES[*]}"
+echo "🔗 管理后台: http://${REMOTE_HOST}:4000/ui"
 echo "----------------------------------------------------"
