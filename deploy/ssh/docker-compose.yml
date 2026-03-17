@@ -12,8 +12,9 @@ services:
     command:
      - "--config=/app/config.yaml"
     #############################################
-    ports:
-      - "4040:4000" # Map the container port to the host
+    ### only accessible for nginx container
+    expose:
+      - "4000"
     environment:
       DATABASE_URL: "postgresql://llmproxy:dbpassword9090@db:5432/litellm"
       STORE_MODEL_IN_DB: "True" # allows adding models to proxy via UI
@@ -29,6 +30,8 @@ services:
       timeout: 10s   # Health check command times out after 10 seconds
       retries: 3     # Retry up to 3 times if health check fails
       start_period: 40s  # Wait 40 seconds after container start before beginning health checks
+    networks:
+      - litellm-internal
 
   db:
     image: docker.io/library/postgres:16
@@ -39,8 +42,8 @@ services:
       POSTGRES_USER: llmproxy
       POSTGRES_PASSWORD: dbpassword9090
     ### only accessible for litellm container
-    # ports:
-    #   - "5432:5432"
+    expose:
+      - "5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data # Persists Postgres data across container restarts
     healthcheck:
@@ -48,29 +51,46 @@ services:
       interval: 1s
       timeout: 5s
       retries: 10
+    networks:
+      - litellm-internal
 
   prometheus:
     image: docker.io/prom/prometheus:latest
     volumes:
       - prometheus_data:/prometheus
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
-    ports:
-      - "9090:9090"
+    expose:
+      - "9090"
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.path=/prometheus"
       - "--storage.tsdb.retention.time=15d"
     restart: always
+    networks:
+      - litellm-internal
 
   nginx:
     image: docker.io/library/nginx:alpine
+    container_name: litellm-gateway
     ports:
       - "4000:8080"
+    expose:
+      - "8080"  # for litellm portal
+      - "8081"  # for LLM API
     volumes:
       - ./litellm_admin_ng.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
       - litellm
     restart: always
+    networks:
+      - local-llm-service
+      - litellm-internal
+
+networks:
+  local-llm-service:
+    external: true
+  litellm-internal:
+    driver: bridge
 
 volumes:
   prometheus_data:
